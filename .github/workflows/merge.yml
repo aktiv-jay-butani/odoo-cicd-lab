@@ -23,8 +23,7 @@ jobs:
 
       - name: Fetch branches
         run: |
-          git fetch origin dev
-          git fetch origin staging
+          git remote update
 
       - name: Checkout staging
         run: |
