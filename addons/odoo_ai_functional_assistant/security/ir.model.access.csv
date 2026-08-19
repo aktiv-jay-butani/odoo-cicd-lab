@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_odoo_ai_knowledge_chunk_user,odoo.ai.knowledge.chunk.user,model_odoo_ai_knowledge_chunk,base.group_user,1,1,1,1
+access_odoo_ai_assistant_session_user,odoo.ai.assistant.session.user,model_odoo_ai_assistant_session,base.group_user,1,1,1,1
+
