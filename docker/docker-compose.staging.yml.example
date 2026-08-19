@@ -1,0 +1,32 @@
+# Place this as /opt/odoo-staging/docker-compose.yml on the staging server.
+# The deploy step sets $ODOO_IMAGE before calling `docker compose up -d`.
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+
+  odoo:
+    image: ${ODOO_IMAGE:-ghcr.io/OWNER/REPO/odoo-staging:latest}
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "8069:8069"
+    volumes:
+      - odoo-filestore:/var/lib/odoo
+
+volumes:
+  odoo-db-data:
+  odoo-filestore:
