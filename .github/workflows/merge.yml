@@ -36,4 +36,4 @@ jobs:
 
       - name: Push staging
         run: |
-          git push origin/staging
+          git push origin staging
