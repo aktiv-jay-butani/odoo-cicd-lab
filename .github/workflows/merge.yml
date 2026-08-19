@@ -1,10 +1,16 @@
 name: Merge Dev to Staging
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [dev]
+  workflow_dispatch:   # keep manual trigger too, for re-runs
 
 permissions:
   contents: write
+
+concurrency:
+  group: merge-dev-to-staging
+  cancel-in-progress: false   # never cancel a merge mid-flight
 
 jobs:
   merge:
@@ -22,8 +28,7 @@ jobs:
           git config user.email "jay.butani@aktivsoftware.com"
 
       - name: Fetch branches
-        run: |
-          git remote update
+        run: git remote update
 
       - name: Checkout staging
         run: |
@@ -31,9 +36,8 @@ jobs:
           git pull origin staging
 
       - name: Merge dev
-        run: |
-          git merge origin/dev --no-edit
+        run: git merge origin/dev --no-edit
 
       - name: Push staging
-        run: |
-          git push origin staging
+        run: git push origin staging
+        # This push is what triggers staging-build-test-deploy.yml below.
