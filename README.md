@@ -1,2 +1,2 @@
 # odoo-cicd-lab
-Odoo CI/CD Pipeline
+Odoo CI/CD Pipeline - Staging
