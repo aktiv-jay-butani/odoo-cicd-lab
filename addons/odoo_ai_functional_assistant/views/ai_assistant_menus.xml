@@ -2,6 +2,6 @@
 <odoo>
     <menuitem id="menu_odoo_ai_assistant_root" name="AI Assistant" sequence="35"/>
     <menuitem id="menu_odoo_ai_assistant_ask" name="Ask Assistant" parent="menu_odoo_ai_assistant_root" action="action_odoo_ai_assistant_session" sequence="10"/>
-    <menuitem id="menu_odoo_ai_assistant_knowledge" name="Knowledge Chunks" parent="menu_odoo_ai_assistant_root" action="action_odoo_ai_knowledge_chunk" sequence="20"/>
+    <menuitem id="menu_odoo_ai_assistant_knowledge" name="Knowledge Chunks" parent="menu_odoo_ai_assistant_root" action="action_odoo_ai_knowledge_chunk" sequence="20"
 </odoo>
 
