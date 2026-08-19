@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write   # needed to open an issue when a merge conflict is detected
 
 concurrency:
   group: merge-dev-to-staging
@@ -36,7 +37,29 @@ jobs:
           git pull origin staging
 
       - name: Merge dev
-        run: git merge origin/dev --no-edit
+        id: merge
+        run: |
+          set +e
+          git merge origin/dev --no-edit
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Abort cleanly on conflict
+        if: steps.merge.outputs.status != '0'
+        run: |
+          git merge --abort
+          echo "::error::Merge conflict between dev and staging — resolve manually and push staging yourself."
+          exit 1
+
+      - name: Open an issue if the merge conflicted
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Auto-merge dev → staging failed: conflict" \
+            --body "The scheduled merge from dev into staging hit a conflict and was aborted automatically. Resolve it locally: checkout staging, \`git merge origin/dev\`, fix the conflicting file(s), commit, and push staging yourself."
 
       - name: Push staging
         run: git push origin staging
