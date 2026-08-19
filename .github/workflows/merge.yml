@@ -27,12 +27,12 @@ jobs:
 
       - name: Checkout staging
         run: |
-          git checkout origin/staging
+          git checkout -B staging origin/staging
           git pull origin staging
 
       - name: Merge dev
         run: |
-          git merge origin/dev
+          git merge origin/dev --no-edit
 
       - name: Push staging
         run: |
