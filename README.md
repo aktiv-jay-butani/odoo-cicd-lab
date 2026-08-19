@@ -1,7 +1,7 @@
 # odoo-cicd-lab
 
 Odoo 19 CI/CD pipeline — mirrors what odoo.sh does on merge-to-staging:
-build → fresh install with tests → build image → deploy, all automatic.
+build → fresh install with tests → build image → deploy.
 
 ## Flow
 
