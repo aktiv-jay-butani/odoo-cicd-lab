@@ -27,13 +27,13 @@ jobs:
 
       - name: Checkout staging
         run: |
-          git checkout staging
+          git checkout origin/staging
           git pull origin staging
 
       - name: Merge dev
         run: |
-          git merge origin dev
+          git merge origin/dev
 
       - name: Push staging
         run: |
-          git push origin staging
+          git push origin/staging
