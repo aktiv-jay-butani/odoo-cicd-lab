@@ -1,0 +1,129 @@
+name: Staging Build, Test & Deploy
+
+on:
+  workflow_run:
+    workflows: ["Merge Dev to Staging"]
+    types: [completed]
+  # NOTE: this used to be `on: push: branches: [staging]`, but merge.yml
+  # pushes to staging using the built-in GITHUB_TOKEN, and GitHub
+  # intentionally does not let GITHUB_TOKEN-authored pushes trigger other
+  # workflows (loop protection). Reacting to the merge workflow's
+  # completion instead sidesteps that entirely.
+
+permissions:
+  contents: read
+  packages: write   # required to push the image to ghcr.io
+
+concurrency:
+  group: staging-build
+  cancel-in-progress: true   # a newer staging push supersedes an in-flight one
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/odoo-staging
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    # Switch to self-hosted once addon count / test time outgrows GitHub-hosted
+    # runners (2 CPU / 7GB RAM) — see README note below.
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set build vars
+        id: vars
+        run: echo "image_tag=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Odoo image (with addons baked in)
+        run: |
+          docker build \
+            -f docker/Dockerfile \
+            -t odoo-staging:${{ steps.vars.outputs.image_tag }} \
+            .
+
+      - name: Install & test all custom modules
+        run: |
+          chmod +x scripts/run_tests.sh
+          ./scripts/run_tests.sh \
+            odoo-staging:${{ steps.vars.outputs.image_tag }} \
+            localhost \
+            odoo \
+            odoo
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: odoo-test-log
+          path: /tmp/odoo_test_*.log
+          retention-days: 14
+
+      - name: Log in to GHCR
+        if: success()
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push build image
+        if: success()
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}"
+          docker tag odoo-staging:${{ steps.vars.outputs.image_tag }} "$IMAGE:${{ steps.vars.outputs.image_tag }}"
+          docker tag odoo-staging:${{ steps.vars.outputs.image_tag }} "$IMAGE:latest"
+          docker push "$IMAGE:${{ steps.vars.outputs.image_tag }}"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    needs: build-and-test
+    if: success() && vars.STAGING_SSH_HOST != ''
+    # ^ while testing, leave the STAGING_SSH_HOST *variable* (not secret) unset
+    #   and this job will be skipped instead of failing, so you can prove out
+    #   build-and-test on its own first. Set it once you have a real server.
+    runs-on: ubuntu-latest
+    environment: staging   # add required reviewers here if you want a gate
+
+    steps:
+      - name: Deploy new build to staging server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.image_tag }}
+            cd /opt/odoo-staging
+            export ODOO_IMAGE=ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.image_tag }}
+            docker compose up -d
+            # Apply the module updates to the real staging DB (not the throwaway test DB)
+            docker compose exec -T odoo odoo -d staging -u all --stop-after-init
+            docker compose restart odoo

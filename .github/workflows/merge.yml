@@ -1,10 +1,17 @@
 name: Merge Dev to Staging
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [dev]
+  workflow_dispatch:   # keep manual trigger too, for re-runs
 
 permissions:
   contents: write
+  issues: write   # needed to open an issue when a merge conflict is detected
+
+concurrency:
+  group: merge-dev-to-staging
+  cancel-in-progress: false   # never cancel a merge mid-flight
 
 jobs:
   merge:
@@ -12,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -22,19 +29,38 @@ jobs:
           git config user.email "jay.butani@aktivsoftware.com"
 
       - name: Fetch branches
-        run: |
-          git fetch origin dev
-          git fetch origin staging
+        run: git remote update
 
       - name: Checkout staging
         run: |
-          git checkout staging
+          git checkout -B staging origin/staging
           git pull origin staging
 
       - name: Merge dev
+        id: merge
         run: |
-          git merge origin dev
+          set +e
+          git merge origin/dev --no-edit
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Abort cleanly on conflict
+        if: steps.merge.outputs.status != '0'
+        run: |
+          git merge --abort
+          echo "::error::Merge conflict between dev and staging — resolve manually and push staging yourself."
+          exit 1
+
+      - name: Open an issue if the merge conflicted
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Auto-merge dev → staging failed: conflict" \
+            --body "The scheduled merge from dev into staging hit a conflict and was aborted automatically. Resolve it locally: checkout staging, \`git merge origin/dev\`, fix the conflicting file(s), commit, and push staging yourself."
 
       - name: Push staging
-        run: |
-          git push origin staging
+        run: git push origin staging
+        # This push is what triggers staging-build-test-deploy.yml below.
