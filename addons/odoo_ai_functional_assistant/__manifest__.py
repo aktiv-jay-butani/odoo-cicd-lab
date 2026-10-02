@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Odoo AI Functional Assistant",
-    "version": "19.0.1.0.2",
+    "version": "19.0.1.0.3",
     "category": "Productivity",
     "summary": "AI assistant for Odoo functional consultants using Odoo documentation knowledge",
     "description": """
